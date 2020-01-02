@@ -1,0 +1,10 @@
+{
+    "wifiSsid": "",
+    "wifiPassword": "",
+    "mqttHost": "",
+    "mqttPort": 1883,
+    "mqttUsername": "",
+    "mqttPassword": "",
+    "mqttPublishChannel": "",
+    "uuid": ""
+}
