@@ -5,7 +5,7 @@
     "mqttPort": 1883,
     "mqttUsername": "",
     "mqttPassword": "",
-    "mqttPublishChannel": "marvin/device/action",
-    "mqttSubscribeChannel": "marvin/device/listen",
+    "mqttPublishChannel": "device/to/marvin",
+    "mqttSubscribeChannel": "marvin/to/device",
     "uuid": ""
 }

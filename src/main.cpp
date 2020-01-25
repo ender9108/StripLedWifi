@@ -9,15 +9,15 @@
 void logger(String message, bool endLine = true);
 
 struct Config {
-  char wifiSsid[32];
-  char wifiPassword[64];
-  char mqttHost[128];
+  char wifiSsid[32] = "";
+  char wifiPassword[64] = "";
+  char mqttHost[128] = "";
   int  mqttPort = 1883;
-  char mqttUsername[32];
-  char mqttPassword[64];
-  char mqttPublishChannel[128];
-  char mqttSubscribeChannel[128];
-  char uuid[64];
+  char mqttUsername[32] = "";
+  char mqttPassword[64] = "";
+  char mqttPublishChannel[128] = "device/to/marvin";
+  char mqttSubscribeChannel[128] = "marvin/to/device";
+  char uuid[64] = "";
 };
 
 WiFiClient wifiClient;
@@ -25,7 +25,7 @@ PubSubClient mqttClient(wifiClient);
 Config config;
 AsyncWebServer server(80);
 
-const int restartButtonPin = 23;
+const int ledStatus = 4;
 const int ledStripRedPin = 19;
 const int ledStripGreenPin = 18;
 const int ledStripBluePin = 5;
@@ -41,8 +41,11 @@ bool wifiConnected = false;
 bool mqttConnected = false;
 bool startApp = false;
 bool lightOn = false;
+int ledStatusState = LOW;
 String errorMessage = "";
 unsigned long restartRequested = 0;
+unsigned long resetRequested = 0;
+unsigned long previousBlink = 0;
 
 void logger(String message, bool endLine) {
   if (true == debug) {
@@ -107,9 +110,9 @@ bool getConfig() {
     !json.containsKey("mqttSubscribeChannel") ||
     !json.containsKey("uuid")
   ) {
-    logger("getConfig");
+    logger(F("getConfig"));
     serializeJson(json, Serial);
-    logger("");
+    logger(F(""));
     logger(F("Key not found in json fille"));
     return false;
   }
@@ -126,41 +129,41 @@ bool getConfig() {
 
   configFile.close();
 
-  logger("wifiSsid : ", false);
+  logger(F("wifiSsid : "), false);
   logger(String(config.wifiSsid));
-  logger("wifiPassword : ", false);
+  logger(F("wifiPassword : "), false);
   logger(String(config.wifiPassword));
-  logger("mqttHost : ", false);
+  logger(F("mqttHost : "), false);
   logger(String(config.mqttHost));
-  logger("mqttPort : ", false);
+  logger(F("mqttPort : "), false);
   logger(String(config.mqttPort));
-  logger("mqttUsername : ", false);
+  logger(F("mqttUsername : "), false);
   logger(String(config.mqttUsername));
-  logger("mqttPassword : ", false);
+  logger(F("mqttPassword : "), false);
   logger(String(config.mqttPassword));
-  logger("mqttPublishChannel : ", false);
+  logger(F("mqttPublishChannel : "), false);
   logger(String(config.mqttPublishChannel));
-  logger("mqttSubscribeChannel : ", false);
+  logger(F("mqttSubscribeChannel : "), false);
   logger(String(config.mqttSubscribeChannel));
-  logger("uuid : ", false);
+  logger(F("uuid : "), false);
   logger(String(config.uuid));
 
   return true;
 }
 
-bool setConfig() {
+bool setConfig(Config newConfig) {
   StaticJsonDocument<512> json;
   
-  json["wifiSsid"] = String(config.wifiSsid);
-  json["wifiPassword"] = String(config.wifiPassword);
-  json["mqttHost"] = String(config.mqttHost);
-  json["mqttPort"] = config.mqttPort;
-  json["mqttUsername"] = String(config.mqttUsername);
-  json["mqttPassword"] = String(config.mqttPassword);
-  json["mqttPublishChannel"] = String(config.mqttPublishChannel);
-  json["mqttSubscribeChannel"] = String(config.mqttSubscribeChannel);
+  json["wifiSsid"] = String(newConfig.wifiSsid);
+  json["wifiPassword"] = String(newConfig.wifiPassword);
+  json["mqttHost"] = String(newConfig.mqttHost);
+  json["mqttPort"] = newConfig.mqttPort;
+  json["mqttUsername"] = String(newConfig.mqttUsername);
+  json["mqttPassword"] = String(newConfig.mqttPassword);
+  json["mqttPublishChannel"] = String(newConfig.mqttPublishChannel);
+  json["mqttSubscribeChannel"] = String(newConfig.mqttSubscribeChannel);
 
-  if (strlen(config.uuid) == 0) {
+  if (strlen(newConfig.uuid) == 0) {
     uint32_t tmpUuid = esp_random();
     String(tmpUuid).toCharArray(config.uuid, 64);
   }
@@ -170,7 +173,7 @@ bool setConfig() {
   File configFile = SPIFFS.open(configFilePath, FILE_WRITE);
   
   if (!configFile) {
-    logger("Failed to open config file for writing");
+    logger(F("Failed to open config file for writing"));
     return false;
   }
 
@@ -178,52 +181,49 @@ bool setConfig() {
 
   configFile.close();
 
-  delay(100);
-  getConfig();
-
   return true;
 }
 
 bool wifiConnect() {
   unsigned int count = 0;
   WiFi.begin(config.wifiSsid, config.wifiPassword);
-  Serial.print("Try to connect to ");
+  Serial.print(F("Try to connect to "));
   logger(config.wifiSsid);
 
   while (count < 20) {
     if (WiFi.status() == WL_CONNECTED) {
       logger("");
-      Serial.print("WiFi connected (IP : ");  
+      Serial.print(F("WiFi connected (IP : "));  
       Serial.print(WiFi.localIP());
-      logger(")");
+      logger(F(")"));
   
       return true;
     } else {
       delay(500);
-      Serial.print(".");  
+      Serial.print(F("."));  
     }
 
     count++;
   }
 
-  Serial.print("Error connection to ");
+  Serial.print(F("Error connection to "));
   logger(String(config.wifiSsid));
   errorMessage = "Wifi connection error to " + String(config.wifiSsid);
   return false;
 }
 
 bool checkWifiConfigValues() {
-  logger("config.wifiSsid length : ", false);
+  logger(F("config.wifiSsid length : "), false);
   logger(String(strlen(config.wifiSsid)));
 
-  logger("config.wifiPassword length : ", false);
+  logger(F("config.wifiPassword length : "), false);
   logger(String(strlen(config.wifiPassword)));
   
   if ( strlen(config.wifiSsid) > 1 && strlen(config.wifiPassword) > 1 ) {
     return true;
   }
 
-  logger("Ssid and passw not present in SPIFFS");
+  logger(F("Ssid and passw not present in SPIFFS"));
   return false;
 }
 
@@ -234,13 +234,13 @@ bool mqttConnect() {
         logger("Attempting MQTT connection (host: " + String(config.mqttHost) + ")...");
         // Attempt to connect
         if (mqttClient.connect(mqttName, config.mqttUsername, config.mqttPassword)) {
-            logger("connected !");
+            logger(F("connected !"));
             mqttClient.subscribe(config.mqttSubscribeChannel);
             return true;
         } else {
-            logger("failed, rc=", false);
+            logger(F("failed, rc="), false);
             logger(String(mqttClient.state()));
-            logger(" try again in 5 seconds");
+            logger(F("try again in 5 seconds"));
             // Wait 5 seconds before retrying
             delay(5000);
 
@@ -306,8 +306,6 @@ void serverConfig() {
       for (int i = 0 ; i < params ; i++) {
         AsyncWebParameter* p = request->getParam(i);
 
-        Serial.printf("POST[%s]: %s\n", p->name().c_str(), p->value().c_str());
-
         if (p->name() == "wifiSsid") {
           strlcpy(config.wifiSsid, p->value().c_str(), sizeof(config.wifiSsid));
         } else if (p->name() == "wifiPasswd") {
@@ -327,7 +325,7 @@ void serverConfig() {
         }
       }
       // save config
-      setConfig();
+      setConfig(config);
 
       request->send(SPIFFS, "/restart.html", "text/html", false, processor);
   });
@@ -362,8 +360,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
   StaticJsonDocument<256> json;
   deserializeJson(json, payload, length);
   
-  //serializeJson(json, Serial);
-  char response[256];
+  char response[1280];
   
   if (json.containsKey("action")) {
     JsonVariant action = json["action"];
@@ -384,27 +381,17 @@ void callback(char* topic, byte* payload, unsigned int length) {
         sprintf(response, "{\"code\": \"200\", \"actionCalled\": \"%s\", \"payload\": \"%d\"}", action.as<char *>(), status);
       }
     } 
-    else if (json["action"] == "config") {
-      String message  = "{";
-      message        += "  \"status\": \"ok\",";
-      message        += "  \"message\": {";
-      message        += "    \"ip\": \"" + WiFi.localIP().toString() + "\",";
-      message        += "    \"Mac address\": \"" + WiFi.macAddress() + "\",";
-      message        += "    \"protocol\": \"mqtt\",";
-      message        += "    \"port\": " + String(config.mqttPort) + ",";
-      message        += "    \"routes: [";
-      message        += "      {\"action\": \"ping\",        \"payload\": null}";
-      message        += "      {\"action\": \"status\",      \"payload\": null}";
-      message        += "      {\"action\": \"lightOn\",     \"payload\": null}";
-      message        += "      {\"action\": \"lightOff\",    \"payload\": null}";
-      message        += "      {\"action\": \"changeColor\", \"payload\": {\"red\": {\"type\": \"integer\", \"value\": [0,255]}, \"green\": {\"type\": \"integer\", \"value\": [0,255]}, \"blue\": {\"type\": \"integer\", \"value\": [0,255]}}}";
-      message        += "    ]";
-      message        += "  }";
-      message        += "}";
+    else if (json["action"] == "configure") {
+        String message  = "{\"code\":\"200\",\"actionCalled\":\"" + action.as<String>() + "\",\"payload\":{\"ip\":\"" + WiFi.localIP().toString() + "\",\"Mac address\":\"" + WiFi.macAddress() + "\",\"protocol\":\"mqtt\",\"port\":\"" + String(config.mqttPort) + "\",\"actions\":[{\"action\":\"ping\",\"payload\":null,\"response\":{\"code\":{\"type\":\"integer\",\"value\":\"[200, 500]\",\"definition\":{\"200\":\"ok\",\"500\":\"error\"}},\"actionCalled\":{\"type\":\"string\"},\"payload\":{\"type\":\"string\"}}},{\"action\":\"status\",\"payload\":null,\"response\":{\"code\":{\"type\":\"integer\",\"value\":\"[200, 500]\",\"definition\":{\"200\":\"ok\",\"500\":\"error\"}},\"actionCalled\":{\"type\":\"string\"},\"payload\":{\"type\":\"string\"}}},{\"action\":\"lightOn\",\"payload\":null,\"response\":{\"code\":{\"type\":\"integer\",\"value\":\"[200,500]\",\"definition\":{\"200\":\"ok\",\"500\":\"error\"}},\"actionCalled\":{\"type\":\"string\"},\"payload\":{\"type\":\"string\"}}},{\"action\":\"lightOff\",\"payload\":null,\"response\":{\"code\":{\"type\":\"integer\",\"value\":\"[200,500]\",\"definition\":{\"200\":\"ok\",\"500\":\"error\"}},\"actionCalled\":{\"type\":\"string\"},\"payload\":{\"type\":\"string\"}}},{\"action\":\"changeColor\",\"payload\":{\"red\":{\"type\":\"integer\",\"value\":\"[0,255]\"},\"green\":{\"type\":\"integer\",\"value\":\"[0,255]\"},\"blue\":{\"type\":\"integer\",\"value\":\"[0,255]\"}},\"response\":{\"code\":{\"type\":\"integer\",\"value\":\"[200, 500]\",\"definition\":{\"200\":\"ok\",\"500\":\"error\"}},\"actionCalled\":{\"type\":\"string\"},\"payload\":{\"type\":\"string\"}}}]}}";
+        message.toCharArray(response, 1280);
     }
     else if (json["action"] == "restart") {
       sprintf(response, "{\"code\": \"200\", \"actionCalled\": \"%s\", \"payload\": \"Restart in progress\"}", action.as<char *>());
       restartRequested = millis();
+    }
+    else if (json["action"] == "reset") {
+      sprintf(response, "{\"code\": \"200\", \"actionCalled\": \"%s\", \"payload\": \"Reset in progress\"}", action.as<char *>());
+      resetRequested = millis();
     }
     else if (json["action"] == "lightOn") {
       setLightColor(255, 255, 255);
@@ -421,7 +408,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
       JsonVariant blue = json["payload"]["blue"];
 
       setLightColor(red.as<unsigned int>(), green.as<unsigned int>(), blue.as<unsigned int>());
-      sprintf(response, "{\"code\": \"200\", \"actionCalled\": \"%s\", \"payload\": \"Change color to %d-%d-%d\"}", action.as<char *>(), red.as<unsigned int>(), green.as<unsigned int>(), blue.as<unsigned int>());
+      sprintf(response, "{\"code\": \"200\", \"actionCalled\": \"%s\", \"payload\": \"Change color to %d,%d,%d\"}", action.as<char *>(), red.as<unsigned int>(), green.as<unsigned int>(), blue.as<unsigned int>());
     }
     else {
       sprintf(response, "{\"code\": \"404\", \"payload\": \"Action %s not found !\"}", action.as<char *>());
@@ -433,18 +420,25 @@ void callback(char* topic, byte* payload, unsigned int length) {
   memset(response, 0, sizeof(response));
 }
 
+void resetConfig() {
+    Config resetConfig;
+    setConfig(resetConfig);
+}
+
 void setup() {
   Serial.begin(115200);
-  logger("Start program !");
+  logger(F("Start program !"));
 
   if (!SPIFFS.begin(true)) {
-    logger("An Error has occurred while mounting SPIFFS");
+    logger(F("An Error has occurred while mounting SPIFFS"));
     return;
   }
 
-  logger("SPIFFS mounted");
+  logger(F("SPIFFS mounted"));
 
-  pinMode(restartButtonPin, INPUT);
+  pinMode(ledStatus, OUTPUT);
+
+  digitalWrite(ledStatus, LOW);
 
   // Get wifi SSID and PASSW from SPIFFS
   if (true == getConfig()) {
@@ -468,10 +462,9 @@ void setup() {
   if (false == startApp) {
     WiFi.mode(WIFI_AP);
     WiFi.softAP(wifiApSsid, wifiApPassw);
-    logger("WiFi AP is ready (IP : ", false);  
+    logger(F("WiFi AP is ready (IP : "), false);  
     logger(WiFi.softAPIP().toString(), false);
-    logger(")");
-
+    logger(F(")"));
     serverConfig();
   } else {
     ledcAttachPin(ledStripRedPin, 1); // assign RGB led pins to channels
@@ -485,25 +478,32 @@ void setup() {
     ledcSetup(2, 12000, 8);
     ledcSetup(3, 12000, 8);
 
-    logger("App started !");
+    digitalWrite(ledStatus, HIGH);
+    logger(F("App started !"));
   }
 }
 
 void loop() {
   if (true == startApp) {
-    // Subscribe channel
-    mqttClient.loop();
-
     if (restartRequested != 0) {
       if (millis() - restartRequested >= 5000 ) {
-        logger("Restart ESP");
+        logger(F("Restart ESP"));
         restartRequested = 0;
         restart();
       }
     }
 
-    if (digitalRead(restartButtonPin) == LOW) {
-      restartRequested = millis();
+    if (resetRequested != 0) {
+      if (millis() - resetRequested >= 5000) {
+          logger(F("Reset ESP"));
+          resetConfig();
+          logger(F("Restart ESP"));
+          resetRequested = 0;
+          restart();
+      }
     }
+
+    // Subscribe channel
+    mqttClient.loop();
   }
 }
