@@ -437,7 +437,6 @@ void setup() {
   logger(F("SPIFFS mounted"));
 
   pinMode(ledStatus, OUTPUT);
-
   digitalWrite(ledStatus, LOW);
 
   // Get wifi SSID and PASSW from SPIFFS
