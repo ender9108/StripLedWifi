@@ -394,11 +394,11 @@ void callback(char* topic, byte* payload, unsigned int length) {
         }
         else if (json["action"] == "restart") {
             sprintf(response, "{\"code\": \"200\", \"actionCalled\": \"%s\", \"payload\": \"Restart in progress\"}", action.as<char *>());
-            restartRequested = millis();
+            restartRequested = getMillis();
         }
         else if (json["action"] == "reset") {
             sprintf(response, "{\"code\": \"200\", \"actionCalled\": \"%s\", \"payload\": \"Reset in progress\"}", action.as<char *>());
-            resetRequested = millis();
+            resetRequested = getMillis();
         }
         else if (json["action"] == "lightOn") {
             setLightColor(255, 255, 255);
@@ -447,7 +447,7 @@ void blinkLed() {
 }
 
 void blinkLedNoDelay() {
-    unsigned long currentBlinkLed = millis();
+    unsigned long currentBlinkLed = getMillis();
 
     if (currentBlinkLed - previousBlinkLed >= interval) {
         previousBlinkLed = currentBlinkLed;
@@ -462,6 +462,10 @@ void blinkLedNoDelay() {
         // set the LED with the ledState of the variable:
         digitalWrite(ledStatusPin, ledState);
     }
+}
+
+unsigned long getgetMillis() {
+    return esp_timer_get_time() / 1000;
 }
 
 void setup() {
@@ -528,21 +532,21 @@ void setup() {
 void loop() {
     if (true == startApp) {
         if (digitalRead(restartBtnPin) == HIGH) {
-            restartRequested = millis();
+            restartRequested = getMillis();
         }
 
         if (digitalRead(resetBtnPin) == HIGH) {
             if (resetBtnPressed != 0) {
-                if (millis() - resetBtnPressed >= 5000) {
+                if (getMillis() - resetBtnPressed >= 5000) {
                     resetConfig();
                 }
             } else {
-                resetBtnPressed = millis();
+                resetBtnPressed = getMillis();
             }
         }
 
         if (restartRequested != 0) {
-            if (millis() - restartRequested >= 5000 ) {
+            if (getMillis() - restartRequested >= 5000 ) {
                 logger(F("Restart ESP"));
                 restartRequested = 0;
                 restart();
@@ -550,7 +554,7 @@ void loop() {
         }
 
         if (resetRequested != 0) {
-            if (millis() - resetRequested >= 5000) {
+            if (getMillis() - resetRequested >= 5000) {
                 resetConfig();
             }
         }
