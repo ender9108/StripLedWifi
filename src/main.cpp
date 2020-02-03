@@ -5,7 +5,7 @@
 #include <ArduinoJson.h>
 #include <ESPAsyncWebServer.h>
 
-#define MQTT_ENABLE false
+#define MQTT_ENABLE true
 #define OTA_ENABLE false
 
 #if MQTT_ENABLE == true
@@ -450,19 +450,20 @@ void callback(char* topic, byte* payload, unsigned int length) {
         JsonVariant action = json["action"];
 
         if (json["action"] == "ping") {
-        sprintf(response, "{\"code\": \"200\", \"actionCalled\": \"%s\" \"payload\": \"pong\"}", action.as<char *>());
+          sprintf(response, "{\"code\": \"200\", \"actionCalled\": \"%s\" \"payload\": \"pong\"}", action.as<char *>());
         } 
         else if (json["action"] == "status") {
-        int status = 0;
+          int status = 0;
 
-        if(lightOn == true) {
-            status = 1;
-        }
+          if(lightOn == true) {
+              status = 1;
+          }
 
-        if (restartRequested != 0) {
-            sprintf(response, "{\"code\": \"200\", \"actionCalled\": \"%s\", \"payload\": \"Restart in progress\"}", action.as<char *>());
-        } else {
-            sprintf(response, "{\"code\": \"200\", \"actionCalled\": \"%s\", \"payload\": \"%d\"}", action.as<char *>(), status);
+          if (restartRequested != 0) {
+              sprintf(response, "{\"code\": \"200\", \"actionCalled\": \"%s\", \"payload\": \"Restart in progress\"}", action.as<char *>());
+          } else {
+              sprintf(response, "{\"code\": \"200\", \"actionCalled\": \"%s\", \"payload\": \"%d\"}", action.as<char *>(), status);
+          }
         }
         else if (json["action"] == "configure") {
             String message  = "{\"code\":\"200\",\"actionCalled\":\"\",\"payload\":{\"ip\":\"\",\"Mac address\":\"\",\"protocol\":\"mqtt\",\"port\":\"\",\"actions\":[{\"action\":\"ping\",\"payload\":null,\"response\":{\"code\":{\"type\":\"integer\",\"value\":\"[200, 500]\",\"definition\":{\"200\":\"ok\",\"500\":\"error\"}},\"actionCalled\":{\"type\":\"string\"},\"payload\":{\"type\":\"string\"}}},{\"action\":\"status\",\"payload\":null,\"response\":{\"code\":{\"type\":\"integer\",\"value\":\"[200, 500]\",\"definition\":{\"200\":\"ok\",\"500\":\"error\"}},\"actionCalled\":{\"type\":\"string\"},\"payload\":{\"type\":\"string\"}}},{\"action\":\"lightOn\",\"payload\":null,\"response\":{\"code\":{\"type\":\"integer\",\"value\":\"[200,500]\",\"definition\":{\"200\":\"ok\",\"500\":\"error\"}},\"actionCalled\":{\"type\":\"string\"},\"payload\":{\"type\":\"string\"}}},{\"action\":\"lightOff\",\"payload\":null,\"response\":{\"code\":{\"type\":\"integer\",\"value\":\"[200,500]\",\"definition\":{\"200\":\"ok\",\"500\":\"error\"}},\"actionCalled\":{\"type\":\"string\"},\"payload\":{\"type\":\"string\"}}},{\"action\":\"changeColor\",\"payload\":{\"red\":{\"type\":\"integer\",\"value\":\"[0,255]\"},\"green\":{\"type\":\"integer\",\"value\":\"[0,255]\"},\"blue\":{\"type\":\"integer\",\"value\":\"[0,255]\"}},\"response\":{\"code\":{\"type\":\"integer\",\"value\":\"[200,500]\",\"definition\":{\"200\":\"ok\",\"500\":\"error\"}},\"actionCalled\":{\"type\":\"string\"},\"payload\":{\"type\":\"string\"}}}]}}";
